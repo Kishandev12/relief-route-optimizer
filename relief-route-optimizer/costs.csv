@@ -1,0 +1,10 @@
+supply,shelter,cost
+Central_Warehouse,Shelter_A,4
+Central_Warehouse,Shelter_B,6
+Central_Warehouse,Shelter_C,8
+North_Depot,Shelter_A,5
+North_Depot,Shelter_B,4
+North_Depot,Shelter_C,7
+East_Depot,Shelter_A,6
+East_Depot,Shelter_B,3
+East_Depot,Shelter_C,4
