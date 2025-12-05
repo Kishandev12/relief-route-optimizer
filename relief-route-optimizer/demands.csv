@@ -1,4 +1,4 @@
-shelter,demand
-Shelter_A,50
-Shelter_B,70
-Shelter_C,90
+shelter,demand,lat,lon
+Shelter_A,50,28.65,77.23
+Shelter_B,70,28.70,77.20
+Shelter_C,90,28.68,77.25
