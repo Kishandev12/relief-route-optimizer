@@ -10,6 +10,7 @@ st.caption("Compute an optimal shipment plan from depots to shelters")
 run = st.sidebar.button("Solve scenario")
 
 if run:
+    # Fixed sample data
     supplies = {
         "Central_Warehouse": 120,
         "North_Depot": 80,
@@ -50,17 +51,21 @@ if run:
         for d in demands
     }
 
+    # Minimize total transport cost
     problem += pulp.lpSum(cost[(s, d)] * x[(s, d)] for s in supplies for d in demands)
 
+    # Supply and truck limits: cannot ship more than stock or truck capacity
     for s in supplies:
         max_outflow = min(supplies[s], trucks[s] * TRUCK_CAPACITY)
         problem += pulp.lpSum(x[(s, d)] for d in demands) <= max_outflow
 
+    # Demand coverage: must meet or exceed demand
     for d in demands:
         problem += pulp.lpSum(x[(s, d)] for s in supplies) >= demands[d]
 
     status = problem.solve(pulp.PULP_CBC_CMD(msg=False))
-    st.write(f"Solver status: **{pulp.LpStatus[status]}**")
+    status_text = pulp.LpStatus[status]
+    st.write(f"Solver status: **{status_text}**")
 
     rows = []
     total_cost = 0.0
