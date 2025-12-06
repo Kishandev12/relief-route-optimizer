@@ -7,45 +7,57 @@ st.set_page_config(page_title="Relief Route Optimizer", page_icon="🚚", layout
 st.title("Relief Route Optimizer")
 st.caption("Compute an optimal shipment plan from depots to shelters")
 
-st.sidebar.header("Run scenario")
+run = st.sidebar.button("Solve scenario")
 
-uploaded_supplies = st.sidebar.file_uploader("Supplies CSV", type=["csv"])
-uploaded_demands = st.sidebar.file_uploader("Demands CSV", type=["csv"])
-uploaded_costs = st.sidebar.file_uploader("Costs CSV", type=["csv"])
+if run:
+    supplies = {
+        "Central_Warehouse": 120,
+        "North_Depot": 80,
+        "East_Depot": 60,
+    }
 
-run_clicked = st.sidebar.button("Solve scenario")
+    trucks = {
+        "Central_Warehouse": 5,
+        "North_Depot": 3,
+        "East_Depot": 2,
+    }
 
-if run_clicked:
-    if uploaded_supplies is not None and uploaded_demands is not None and uploaded_costs is not None:
-        supplies_df = pd.read_csv(uploaded_supplies)
-        demands_df = pd.read_csv(uploaded_demands)
-        costs_df = pd.read_csv(uploaded_costs)
-    else:
-        supplies_df = pd.read_csv("supplies.csv")
-        demands_df = pd.read_csv("demands.csv")
-        costs_df = pd.read_csv("costs.csv")
+    demands = {
+        "Shelter_A": 50,
+        "Shelter_B": 70,
+        "Shelter_C": 90,
+    }
 
-    supplies = {row["supply"]: row["stock"] for _, row in supplies_df.iterrows()}
-    trucks = {row["supply"]: row["trucks"] for _, row in supplies_df.iterrows()}
-    demands = {row["shelter"]: row["demand"] for _, row in demands_df.iterrows()}
-
-    cost = {(row["supply"], row["shelter"]): row["cost"] for _, row in costs_df.iterrows()}
+    cost = {
+        ("Central_Warehouse", "Shelter_A"): 4,
+        ("Central_Warehouse", "Shelter_B"): 6,
+        ("Central_Warehouse", "Shelter_C"): 8,
+        ("North_Depot", "Shelter_A"): 5,
+        ("North_Depot", "Shelter_B"): 4,
+        ("North_Depot", "Shelter_C"): 7,
+        ("East_Depot", "Shelter_A"): 6,
+        ("East_Depot", "Shelter_B"): 3,
+        ("East_Depot", "Shelter_C"): 4,
+    }
 
     TRUCK_CAPACITY = 20
 
     problem = pulp.LpProblem("Relief_Route_Optimization", pulp.LpMinimize)
 
-    x = {(s, d): pulp.LpVariable(f"x_{s}_{d}", lowBound=0, cat="Continuous")
-         for s in supplies for d in demands}
+    x = {
+        (s, d): pulp.LpVariable(f"x_{s}_{d}", lowBound=0, cat="Continuous")
+        for s in supplies
+        for d in demands
+    }
 
     problem += pulp.lpSum(cost[(s, d)] * x[(s, d)] for s in supplies for d in demands)
 
     for s in supplies:
         max_outflow = min(supplies[s], trucks[s] * TRUCK_CAPACITY)
-        problem += (pulp.lpSum(x[(s, d)] for d in demands) <= max_outflow)
+        problem += pulp.lpSum(x[(s, d)] for d in demands) <= max_outflow
 
     for d in demands:
-        problem += (pulp.lpSum(x[(s, d)] for s in supplies) >= demands[d])
+        problem += pulp.lpSum(x[(s, d)] for s in supplies) >= demands[d]
 
     status = problem.solve(pulp.PULP_CBC_CMD(msg=False))
     st.write(f"Solver status: **{pulp.LpStatus[status]}**")
@@ -55,38 +67,33 @@ if run_clicked:
 
     for s in supplies:
         for d in demands:
-            quantity = x[(s, d)].value()
-            if quantity and quantity > 1e-6:
-                route_cost = quantity * cost[(s, d)]
+            qty = x[(s, d)].value()
+            if qty is None:
+                qty = 0.0
+            if qty > 1e-6:
+                route_cost = qty * cost[(s, d)]
                 total_cost += route_cost
                 rows.append({
                     "from_supply": s,
                     "to_shelter": d,
-                    "units_sent": round(quantity, 2),
+                    "units_sent": round(qty, 2),
                     "cost_per_unit": cost[(s, d)],
-                    "route_cost": round(route_cost, 2)
+                    "route_cost": round(route_cost, 2),
                 })
 
     if rows:
         df = pd.DataFrame(rows)
-
         total_demand = sum(demands.values())
         total_shipped = df["units_sent"].sum()
 
         c1, c2, c3 = st.columns(3)
-        c1.metric("Total demand", total_demand)
-        c2.metric("Total shipped", int(total_shipped))
+        c1.metric("Total demand (units)", int(total_demand))
+        c2.metric("Total shipped (units)", int(total_shipped))
         c3.metric("Total transport cost", round(total_cost, 2))
 
         st.subheader("Optimal shipment plan")
         st.dataframe(df, use_container_width=True)
-
-        shelter_summary = df.groupby("to_shelter")["units_sent"].sum().reset_index()
-        shelter_summary["required"] = shelter_summary["to_shelter"].map(demands)
-        shelter_summary["gap"] = shelter_summary["units_sent"] - shelter_summary["required"]
-
-        st.subheader("Shelter coverage summary")
-        st.dataframe(shelter_summary, use_container_width=True)
-
-        if "lat" in demands_df.columns and "lon" in demands_df.columns:
-            st.subheader("Shelters Map")
+    else:
+        st.error("No feasible routes found.")
+else:
+    st.info("Click **Solve scenario** in the sidebar to run the optimizer.")
